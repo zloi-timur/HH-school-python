@@ -2,7 +2,6 @@ import SocketServer
 import re
 import threading
 import time
-import server_service
 
 class Substitutor3000(object):
     def __init__(self):
@@ -25,51 +24,38 @@ class Substitutor3000(object):
             return self.process_query(self.subst_pairs[key])
         return ""
 
-class SubstitutionResources(object):
-    def __init__(self):
-        self.substitutor = Substitutor3000()
-        self.sleep_time = 0
-        self.time_lock = threading.RLock()
-        self.subst_lock = threading.RLock()
-        self.parser = server_service.CommandsParser()
-        self.parser.put_command(("get",r"GET ([\S]+)"))
-        self.parser.put_command(("put",r"PUT ([\S]+) ([ \S]+)"))
-        self.parser.put_command(("set sleep",r"SET SLEEP ([\d]+)"))
-
 
 class SubstitutionHandler(SocketServer.StreamRequestHandler):
-    resources = SubstitutionResources()
+    substitutor = Substitutor3000()
+    sleep_time = 0
+    time_lock = threading.RLock()
+    subst_lock = threading.RLock()
+
     def handle(self):
-        query = SubstitutionHandler.resources.parser.parse(self.rfile.readline())
-        if query is None:
-            self.wfile.write("BAD REQUEST FORMAT\n")
-            return
-        if query[0] == "get":
-            time.sleep(SubstitutionHandler.resources.sleep_time)
-            self.wfile.write("VALUE\n"+self.get(query[1][0])+"\n")
-            return
-        if query[0] == "put":
-            self.wfile.write("OK\n")
-            self.put(query[1][0],query[1][1])
-            return
-        if query[0] == "set sleep":
-            self.wfile.write("OK\n")
-            self.set_sleep_time(query[1][0])
-            return
-        self.wfile.write("BAD REQUEST FORMAT\n")
+        query = self.rfile.readline()
+        for command, function in SubstitutionHandler.command_binder:
+            if re.match(command, query):
+                function(self, *re.match(command, query).groups())
 
     def set_sleep_time(self, time):
-        if time < 0:
+        if int(time) < 0:
             return
-        with SubstitutionHandler.resources.time_lock:
-            SubstitutionHandler.resources.sleep_time = int(time) / 1000.0
+        self.wfile.write("OK\n")
+        with SubstitutionHandler.time_lock:
+            SubstitutionHandler.sleep_time = int(time) / 1000.0
 
     def put(self, key, value):
-        with SubstitutionHandler.resources.subst_lock:
-            SubstitutionHandler.resources.substitutor.put(key, value)
+        with SubstitutionHandler.subst_lock:
+            SubstitutionHandler.substitutor.put(key, value)
+        self.wfile.write("OK\n")
 
     def get(self, key):
-        with SubstitutionHandler.resources.subst_lock:
-            return SubstitutionHandler.resources.substitutor.get(key)
+        with SubstitutionHandler.subst_lock:
+            value = SubstitutionHandler.substitutor.get(key)
+        time.sleep(SubstitutionHandler.sleep_time)
+        self.wfile.write("VALUE\n" + value + "\n")
 
+    command_binder = ((re.compile(r"GET ([\S]+)"), get),
+                      (re.compile(r"PUT ([\S]+) ([ \S]+)"), put),
+                      (re.compile(r"SET SLEEP ([\d]+)"),set_sleep_time))
 

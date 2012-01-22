@@ -1,10 +1,7 @@
 import SocketServer
-import substitute_service, server_service
+from substitute_service import SubstitutionHandler
 
-parser = server_service.CommandsParser()
-
-
-SocketServer.ThreadingTCPServer(("localhost",808), substitute_service.SubstitutionHandler).serve_forever()
+SocketServer.ThreadingTCPServer(("localhost",808), SubstitutionHandler).serve_forever()
 
 
 
