@@ -1,6 +1,10 @@
-import substitutor, server
+import SocketServer
+import substitute_service, server_service
 
-server.SubstitutionServer(("localhost",808), substitutor.Substitutor3000(), server.SubstitutionHandler).run()
+parser = server_service.CommandsParser()
+
+
+SocketServer.ThreadingTCPServer(("localhost",808), substitute_service.SubstitutionHandler).serve_forever()
 
 
 
