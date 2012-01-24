@@ -1,7 +1,6 @@
-import SocketServer
-from substitute_service import SubstitutionHandler
+from substitute_service import SubstitutionHandler, SubstitutionServer
 
-SocketServer.ThreadingTCPServer(("localhost",808), SubstitutionHandler).serve_forever()
+SubstitutionServer(("localhost",808), SubstitutionHandler).serve_forever()
 
 
 

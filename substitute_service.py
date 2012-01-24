@@ -26,14 +26,9 @@ class Substitutor3000(object):
 
 
 class SubstitutionHandler(SocketServer.StreamRequestHandler):
-    substitutor = Substitutor3000()
-    sleep_time = 0
-    time_lock = threading.RLock()
-    subst_lock = threading.RLock()
-
     def handle(self):
         query = self.rfile.readline()
-        for command, function in SubstitutionHandler.command_binder:
+        for command, function in self.server.command_binder:
             if re.match(command, query):
                 function(self, *re.match(command, query).groups())
 
@@ -41,21 +36,28 @@ class SubstitutionHandler(SocketServer.StreamRequestHandler):
         if int(time) < 0:
             return
         self.wfile.write("OK\n")
-        with SubstitutionHandler.time_lock:
-            SubstitutionHandler.sleep_time = int(time) / 1000.0
+        with self.server.time_lock:
+            self.server.sleep_time = int(time) / 1000.0
 
     def put(self, key, value):
-        with SubstitutionHandler.subst_lock:
-            SubstitutionHandler.substitutor.put(key, value)
+        with self.server.subst_lock:
+            self.server.substitutor.put(key, value)
         self.wfile.write("OK\n")
 
     def get(self, key):
-        with SubstitutionHandler.subst_lock:
-            value = SubstitutionHandler.substitutor.get(key)
-        time.sleep(SubstitutionHandler.sleep_time)
+        with self.server.subst_lock:
+            value = self.server.substitutor.get(key)
+        time.sleep(self.server.sleep_time)
         self.wfile.write("VALUE\n" + value + "\n")
 
-    command_binder = ((re.compile(r"GET ([\S]+)"), get),
-                      (re.compile(r"PUT ([\S]+) ([ \S]+)"), put),
-                      (re.compile(r"SET SLEEP ([\d]+)"),set_sleep_time))
 
+class SubstitutionServer(SocketServer.ThreadingTCPServer):
+    def __init__(self, address, handler):
+        SocketServer.ThreadingTCPServer.__init__(self, address, handler)
+        self.substitutor = Substitutor3000()
+        self.sleep_time = 0
+        self.time_lock = threading.RLock()
+        self.subst_lock = threading.RLock()
+        self.command_binder = ((re.compile(r"GET ([\S]+)"), SubstitutionHandler.get),
+                                (re.compile(r"PUT ([\S]+) ([ \S]+)"), SubstitutionHandler.put),
+                                (re.compile(r"SET SLEEP ([\d]+)"), SubstitutionHandler.set_sleep_time))
