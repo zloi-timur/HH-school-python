@@ -31,6 +31,8 @@ class SubstitutionHandler(SocketServer.StreamRequestHandler):
         for command, function in self.server.command_binder:
             if re.match(command, query):
                 function(self, *re.match(command, query).groups())
+        else:
+            self.wfile.write("NOT CORRECT COMMAND\n")
 
     def set_sleep_time(self, time):
         if int(time) < 0:
